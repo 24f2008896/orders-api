@@ -52,19 +52,24 @@ def decode_cursor(cursor: str) -> int:
         raise HTTPException(status_code=400, detail="Invalid cursor")
 
 
+
 @app.middleware("http")
 async def enforce_rate_limit(request: Request, call_next):
-    # Browser CORS preflight requests should not consume the quota.
+    # CORS preflight requests do not consume the quota.
     if request.method == "OPTIONS":
         return await call_next(request)
 
-    client_id = request.headers.get("X-Client-Id", "anonymous")
+    client_id = request.headers.get("X-Client-Id")
+
+    # Only rate-limit requests that identify a client.
+    if not client_id:
+        return await call_next(request)
+
     now = time.monotonic()
 
     with lock:
         timestamps = rate_limit_store[client_id]
 
-        # Remove requests outside the rolling 10-second window.
         while timestamps and now - timestamps[0] >= WINDOW_SECONDS:
             timestamps.popleft()
 
@@ -82,6 +87,7 @@ async def enforce_rate_limit(request: Request, call_next):
         timestamps.append(now)
 
     return await call_next(request)
+
 
 
 @app.get("/")
