@@ -78,11 +78,20 @@ async def enforce_rate_limit(request: Request, call_next):
                 1,
                 int(WINDOW_SECONDS - (now - timestamps[0]) + 0.999),
             )
+
+            origin = request.headers.get("Origin", "*")
+
             return JSONResponse(
                 status_code=429,
                 content={"detail": "Rate limit exceeded"},
-                headers={"Retry-After": str(retry_after)},
+                headers={
+                    "Retry-After": str(retry_after),
+                    "Access-Control-Allow-Origin": origin,
+                    "Access-Control-Expose-Headers": "Retry-After",
+                    "Vary": "Origin",
+                },
             )
+
 
         timestamps.append(now)
 
